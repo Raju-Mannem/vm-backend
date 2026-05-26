@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install uv
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+COPY ./app ./app
+
+# Run the Celery worker
+# -c 2 sets the concurrency to 2 processes (adjust based on RAM limits)
+CMD ["uv", "run", "celery", "-A", " .core.celery_app.celery_app", "worker", "--loglevel=info", "-c", "2"]
