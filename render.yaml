@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: vm-api
+    env: docker
+    dockerfilePath: ./Dockerfile.api
+    region: oregon
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: vm-redis
+          property: connectionString
+      - key: HF_TOKEN
+        sync: false
+
+  - type: worker
+    name: vm-celery-worker
+    env: docker
+    dockerfilePath: ./Dockerfile.worker
+    region: oregon
+    plan: standard
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: vm-redis
+          property: connectionString
+      - key: HF_TOKEN
+        sync: false
+
+  - type: redis
+    name: vm-redis
+    region: oregon
+    plan: free
