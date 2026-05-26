@@ -6,7 +6,7 @@ from app.db.session import AsyncSessionLocal
 from app.models.bill import Bill, BillStatus
 from app.services.cloudinary import get_signed_url
 from app.services.whatsapp import send_whatsapp_text
-from app.services.llm_structurer import structure_ocr_text
+from app.services.huggingface import structure_ocr_text
 from .ocr_engine import clean_and_extract_text
 
 def run_async(coro):
