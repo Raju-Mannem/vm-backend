@@ -17,4 +17,4 @@ COPY ./app ./app
 
 # Run the Celery worker
 # -c 2 sets the concurrency to 2 processes (adjust based on RAM limits)
-CMD ["uv", "run", "celery", "-A", "app.core.celery_app.celery_app", "worker", "--loglevel=info", "-c", "2"]
+CMD sh -c "uv run celery -A app.core.celery_app.celery_app worker --loglevel=info -c 2"
