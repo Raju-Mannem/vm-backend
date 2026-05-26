@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install uv
+ENV UV_PYTHON=3.11
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
