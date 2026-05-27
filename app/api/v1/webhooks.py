@@ -7,6 +7,9 @@ from app.core.redis import check_and_lock_message
 from app.worker.tasks import process_bill_image
 from app.core.config import settings
 from app.core.security import verify_whatsapp_signature
+import structlog
+
+logger = structlog.get_logger()
 
 router = APIRouter()
 
@@ -17,7 +20,7 @@ async def verify_webhook(request: Request):
     challenge = request.query_params.get("hub.challenge")
 
     if mode == "subscribe" and token == settings.WA_VERIFY_TOKEN:
-        print("✅ Webhook verified successfully by Meta!")
+        logger.info("Webhook verified successfully by Meta")
         return Response(content=challenge, media_type="text/plain")
     raise HTTPException(status_code=403, detail="Verification failed")
 
@@ -46,7 +49,7 @@ async def handle_whatsapp_webhook(
 
         # 1. REDIS IDEMPOTENCY
         if not await check_and_lock_message(message_id):
-            print(f"⏩ Skipping duplicate message {message_id}")
+            logger.info("Skipping duplicate message", message_id=message_id)
             return {"status": "already processed"} 
 
         merchant_repo = MerchantRepository(db)
@@ -59,7 +62,7 @@ async def handle_whatsapp_webhook(
             media_id = media_data.get("id")
             mime_type = media_data.get("mime_type", "image/jpeg")
             
-            print(f"📥 Received {msg_type} from {name} (Media ID: {media_id})")
+            logger.info("Received media", msg_type=msg_type, name=name, media_id=media_id)
             
             bill = await bill_repo.create_bill(
                 merchant_id=merchant.id,
@@ -74,13 +77,13 @@ async def handle_whatsapp_webhook(
             
         elif msg_type == "text":
             text_body = message.get("text", {}).get("body", "")
-            print(f"💬 Received text from {name}: {text_body}")
+            logger.info("Received text", name=name, text_body=text_body)
             return {"status": "success - text received"}
             
         else:
-            print(f"⚠️ Ignored unsupported message type: {msg_type}")
+            logger.warning("Ignored unsupported message type", msg_type=msg_type)
             return {"status": "ignored - unsupported media"}
 
     except Exception as e:
-        print(f"❌ Error parsing webhook: {e}")
+        logger.error("Error parsing webhook", error=str(e), exc_info=True)
         return {"status": "error parsing payload"}

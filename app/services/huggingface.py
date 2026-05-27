@@ -1,6 +1,9 @@
 import json
 from huggingface_hub import InferenceClient
 from app.core.config import settings
+import structlog
+
+logger = structlog.get_logger()
 
 client = InferenceClient(api_key=settings.HF_TOKEN)
 
@@ -38,5 +41,5 @@ def structure_ocr_text(raw_text: str) -> str:
         return content
         
     except Exception as e:
-        print(f"LLM Extraction failed: {e}")
+        logger.error("LLM Extraction failed", error=str(e), exc_info=True)
         return "{}"
