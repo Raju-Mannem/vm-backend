@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import webhooks, dashboard
+from app.api.v1 import webhooks, dashboard, privacy_policy
 
 app = FastAPI(
     title="WhatsApp Bill Processing API",
@@ -22,6 +22,7 @@ app.add_middleware(
 # It is ONLY applied to the webhook router.
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+app.include_router(privacy_policy.router, prefix="/api/v1/privacy", tags=["Privacy"])
 
 @app.get("/health", tags=["System"])
 async def health_check():
