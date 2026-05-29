@@ -9,11 +9,6 @@ from app.core.config import settings
 from app.core.security import verify_whatsapp_signature
 import structlog
 from fastapi.responses import JSONResponse
-import logging
-
-router = APIRouter()
-
-logger = logging.getLogger(__name__)
 
 logger = structlog.get_logger()
 
@@ -32,10 +27,11 @@ async def verify_webhook(request: Request):
 
 @router.post("/whatsapp")
 async def webhook_test(request: Request):
-    raw_body = await request.body()
+    body = await request.body()
 
-    logger.warning("WEBHOOK HIT")
-    logger.warning(raw_body.decode())
+    print("========== WEBHOOK HIT ==========")
+    print(body.decode())
+    print("=================================")
 
     return JSONResponse(
         status_code=200,
