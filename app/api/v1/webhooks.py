@@ -4,9 +4,9 @@ from app.db.session import get_db_session
 from app.repositories.merchant_repo import MerchantRepository
 from app.repositories.bill_repo import BillRepository
 from app.core.redis import check_and_lock_message
-from app.worker.tasks import process_bill_image
+from app.worker.tasks import process_bill_image, process_bill_image_evolution
 from app.core.config import settings
-from app.core.security import verify_whatsapp_signature
+from app.core.security import verify_whatsapp_signature, verify_evolution_signature
 import structlog
 
 logger = structlog.get_logger()
@@ -86,4 +86,64 @@ async def handle_whatsapp_webhook(
 
     except Exception as e:
         logger.error("Error parsing webhook", error=str(e), exc_info=True)
+        return {"status": "error parsing payload"}
+
+@router.post("/evolution", dependencies=[Depends(verify_evolution_signature)])
+async def handle_evolution_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session)
+):
+    payload = await request.json()
+    
+    try:
+        event = payload.get("event")
+        if event != "messages.upsert":
+            return {"status": "ignored - not a message event"}
+
+        data = payload.get("data", {})
+        key = data.get("key", {})
+        
+        if key.get("fromMe"):
+            return {"status": "ignored - from me"}
+
+        whatsapp_id = key.get("remoteJid", "").split("@")[0]
+        name = data.get("pushName", "Unknown")
+        message_id = key.get("id")
+        msg_type = data.get("messageType")
+
+        if not message_id:
+            return {"status": "ignored - no message id"}
+
+        if not await check_and_lock_message(message_id):
+            logger.info("Skipping duplicate message", message_id=message_id)
+            return {"status": "already processed"}
+
+        merchant_repo = MerchantRepository(db)
+        bill_repo = BillRepository(db)
+        merchant = await merchant_repo.upsert_merchant(whatsapp_id, name)
+
+        if msg_type in ["imageMessage", "documentMessage"]:
+            logger.info("Received evolution media", msg_type=msg_type, name=name, message_id=message_id)
+            
+            bill = await bill_repo.create_bill(
+                merchant_id=merchant.id,
+                message_id=message_id,
+                public_id=f"pending_evo_{message_id}", 
+                file_url="pending"
+            )
+            
+            # Using data object directly as the message struct needed to get base64
+            process_bill_image_evolution.delay(bill.id, whatsapp_id, data, "image/jpeg")
+            return {"status": "success - media queued"}
+            
+        elif msg_type in ["conversation", "extendedTextMessage"]:
+            logger.info("Received text", name=name)
+            return {"status": "success - text received"}
+            
+        else:
+            logger.warning("Ignored unsupported message type", msg_type=msg_type)
+            return {"status": "ignored - unsupported media"}
+
+    except Exception as e:
+        logger.error("Error parsing evolution webhook", error=str(e), exc_info=True)
         return {"status": "error parsing payload"}
