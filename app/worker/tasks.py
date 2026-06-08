@@ -2,7 +2,9 @@ import httpx
 import asyncio
 from celery import shared_task
 from sqlalchemy import select
-from app.db.session import AsyncSessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from app.models.bill import Bill, BillStatus
 from app.services.whatsapp import send_whatsapp_text
 from app.services.evolution import send_evolution_text, download_evolution_media
@@ -13,13 +15,17 @@ import structlog
 
 logger = structlog.get_logger()
 
+# Dedicated engine for Celery to avoid asyncpg InterfaceError with asyncio.run
+celery_async_engine = create_async_engine(settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"), poolclass=NullPool, echo=False)
+CeleryAsyncSessionLocal = sessionmaker(bind=celery_async_engine, class_=AsyncSession, expire_on_commit=False)
+
 def run_async(coro):
     return asyncio.run(coro)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def process_bill_image(self, bill_id: str, phone_number: str, media_id: str, mime_type: str):
     async def _async_process():
-        async with AsyncSessionLocal() as db:
+        async with CeleryAsyncSessionLocal() as db:
             try:
                 logger.info("Worker starting process", bill_id=bill_id)
                 result = await db.execute(select(Bill).where(Bill.id == bill_id))
@@ -35,11 +41,15 @@ def process_bill_image(self, bill_id: str, phone_number: str, media_id: str, mim
                 async with httpx.AsyncClient() as client:
                     # Get the temporary download URL
                     res_info = await client.get(meta_url, headers=headers)
+                    if res_info.status_code != 200:
+                        logger.error("Meta API error response", status=res_info.status_code, body=res_info.text)
                     res_info.raise_for_status()
                     download_url = res_info.json().get("url")
                     
                     # Download the actual binary file
                     res_media = await client.get(download_url, headers=headers)
+                    if res_media.status_code != 200:
+                        logger.error("Meta Media download error", status=res_media.status_code, body=res_media.text)
                     res_media.raise_for_status()
                     file_bytes = res_media.content
 
@@ -83,7 +93,7 @@ def process_bill_image(self, bill_id: str, phone_number: str, media_id: str, mim
                     self.retry(exc=e)
                 except self.MaxRetriesExceededError:
                     # Update DB to failed state
-                    async with AsyncSessionLocal() as fail_db:
+                    async with CeleryAsyncSessionLocal() as fail_db:
                         fail_result = await fail_db.execute(select(Bill).where(Bill.id == bill_id))
                         failed_bill = fail_result.scalar_one_or_none()
                         if failed_bill:
@@ -96,7 +106,7 @@ def process_bill_image(self, bill_id: str, phone_number: str, media_id: str, mim
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def process_bill_image_evolution(self, bill_id: str, phone_number: str, message_dict: dict, mime_type: str):
     async def _async_process():
-        async with AsyncSessionLocal() as db:
+        async with CeleryAsyncSessionLocal() as db:
             try:
                 logger.info("Worker starting process (Evolution)", bill_id=bill_id)
                 result = await db.execute(select(Bill).where(Bill.id == bill_id))
@@ -146,7 +156,7 @@ def process_bill_image_evolution(self, bill_id: str, phone_number: str, message_
                     self.retry(exc=e)
                 except self.MaxRetriesExceededError:
                     # Update DB to failed state
-                    async with AsyncSessionLocal() as fail_db:
+                    async with CeleryAsyncSessionLocal() as fail_db:
                         fail_result = await fail_db.execute(select(Bill).where(Bill.id == bill_id))
                         failed_bill = fail_result.scalar_one_or_none()
                         if failed_bill:
