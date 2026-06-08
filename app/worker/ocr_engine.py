@@ -12,7 +12,7 @@ def clean_and_extract_text(image_bytes: bytes) -> str:
     
     # In production, you might want to cache this inside the worker process
     # but local initialization guarantees it stays out of FastAPI.
-    model = PaddleOCR(use_angle_cls=True, lang='en')
+    model = PaddleOCR(lang='en', use_angle_cls=False, ocr_version='PP-OCRv3')
     
     # 3. Extract Text
     result = model.ocr(gray, cls=True)
