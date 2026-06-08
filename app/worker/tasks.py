@@ -35,7 +35,7 @@ def process_bill_image(self, bill_id: str, phone_number: str, media_id: str, mim
 
                 # 1. DOWNLOAD FROM META
                 logger.info("Downloading media from Meta", media_id=media_id)
-                meta_url = f"https://graph.facebook.com/v18.0/{media_id}"
+                meta_url = f"https://graph.facebook.com/v18.0/{media_id}?phone_number_id={settings.WA_PHONE_NUMBER_ID}"
                 headers = {"Authorization": f"Bearer {settings.WA_ACCESS_TOKEN}"}
                 
                 async with httpx.AsyncClient() as client:
