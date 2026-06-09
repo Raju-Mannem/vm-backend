@@ -1,4 +1,3 @@
-import json
 from huggingface_hub import InferenceClient
 from app.core.config import settings
 import structlog
@@ -27,7 +26,7 @@ def structure_ocr_text(raw_text: str) -> str:
 
     try:
         response = client.chat.completions.create(
-            model="meta-llama/Llama-3.2-3B-Instruct", 
+            model="meta-llama/Llama-3.1-8B-Instruct", 
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
             temperature=0.1

@@ -1,26 +1,22 @@
-import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
 from app.models.merchant import Merchant
+from pymongo.errors import DuplicateKeyError
 
 class MerchantRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, session=None):
+        pass
 
     async def upsert_merchant(self, whatsapp_id: str, name: str | None = None) -> Merchant:
-        """
-        Atomically creates a new merchant or updates their name if they exist.
-        Prevents race conditions during high-volume webhook bursts.
-        """
-        stmt = insert(Merchant).values(
-            id=str(uuid.uuid4()),
-            whatsapp_id=whatsapp_id,
-            name=name
-        ).on_conflict_do_update(
-            index_elements=['whatsapp_id'],
-            set_={"name": name}
-        ).returning(Merchant)
-
-        result = await self.session.execute(stmt)
-        await self.session.commit()
-        return result.scalar_one()
+        merchant = await Merchant.find_one(Merchant.whatsapp_id == whatsapp_id)
+        if merchant:
+            if name and merchant.name != name:
+                merchant.name = name
+                await merchant.save()
+            return merchant
+            
+        try:
+            merchant = Merchant(whatsapp_id=whatsapp_id, name=name)
+            await merchant.insert()
+            return merchant
+        except DuplicateKeyError:
+            # Handle race condition
+            return await Merchant.find_one(Merchant.whatsapp_id == whatsapp_id)

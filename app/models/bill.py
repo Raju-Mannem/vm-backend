@@ -1,26 +1,29 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Text, func
-from .merchant import Base
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+from pydantic import Field
+from beanie import Document, Indexed
+from beanie.odm.fields import PydanticObjectId
 from .enums import BillStatus
 
-class Bill(Base):
-    __tablename__ = "bills"
-
-    id = Column(String, primary_key=True, index=True)
-    merchant_id = Column(String, ForeignKey("merchants.id"), nullable=False, index=True)
-    whatsapp_message_id = Column(String, unique=True, index=True, nullable=False) # For Idempotency
+class Bill(Document):
+    merchant_id: Indexed(PydanticObjectId)
+    whatsapp_message_id: Indexed(str, unique=True)
     
     # Storage
-    cloudinary_public_id = Column(String, nullable=False)
-    file_url = Column(String, nullable=False) # Internal/Private URL
+    cloudinary_public_id: str
+    file_url: str
     
     # State Machine
-    status = Column(Enum(BillStatus), default=BillStatus.UPLOADED, nullable=False)
+    status: BillStatus = BillStatus.UPLOADED
     
     # OCR & Review Data
-    raw_ocr_text = Column(Text, nullable=True) # Dumped directly from PaddleOCR
-    corrected_data = Column(Text, nullable=True) # JSON string of final reviewed fields (Supplier, Amount, etc.)
-    review_notes = Column(String, nullable=True) # Optional notes from the Ops employee
+    raw_ocr_text: Optional[str] = None
+    corrected_data: Optional[Dict[str, Any]] = None  # Using Dict instead of JSON string
+    review_notes: Optional[str] = None
     
     # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+    
+    class Settings:
+        name = "bills"
