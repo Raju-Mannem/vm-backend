@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, Response
+from fastapi import APIRouter, Depends, Request, HTTPException, Response, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from app.db.session import get_db_session
 from app.repositories.merchant_repo import MerchantRepository
 from app.repositories.bill_repo import BillRepository
-from app.core.redis import check_and_lock_message
-from app.worker.tasks import process_bill_image, process_bill_image_evolution
+from app.services.processing import process_bill_image_async, process_bill_image_evolution_async
 from app.core.config import settings
 from app.core.security import verify_whatsapp_signature, verify_evolution_signature
+from app.models.bill import Bill
 import structlog
 
 logger = structlog.get_logger()
@@ -27,6 +29,7 @@ async def verify_webhook(request: Request):
 @router.post("/whatsapp", dependencies=[Depends(verify_whatsapp_signature)])
 async def handle_whatsapp_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db_session)
 ):
     payload = await request.json()
@@ -47,10 +50,11 @@ async def handle_whatsapp_webhook(
         message_id = message.get("id")
         msg_type = message.get("type")
 
-        # 1. REDIS IDEMPOTENCY
-        if not await check_and_lock_message(message_id):
+        # 1. DB IDEMPOTENCY
+        existing_bill = await db.execute(select(Bill).where(Bill.whatsapp_message_id == message_id))
+        if existing_bill.scalar_one_or_none():
             logger.info("Skipping duplicate message", message_id=message_id)
-            return {"status": "already processed"} 
+            return {"status": "already processed"}
 
         merchant_repo = MerchantRepository(db)
         bill_repo = BillRepository(db)
@@ -64,15 +68,20 @@ async def handle_whatsapp_webhook(
             
             logger.info("Received media", msg_type=msg_type, name=name, media_id=media_id)
             
-            bill = await bill_repo.create_bill(
-                merchant_id=merchant.id,
-                message_id=message_id,
-                public_id=f"pending_{media_id}", 
-                file_url="pending" 
-            )
+            try:
+                bill = await bill_repo.create_bill(
+                    merchant_id=merchant.id,
+                    message_id=message_id,
+                    public_id=f"pending_{media_id}", 
+                    file_url="pending" 
+                )
+            except IntegrityError:
+                await db.rollback()
+                logger.info("Skipping duplicate message during race condition", message_id=message_id)
+                return {"status": "already processed"}
             
-            # Dispatch to Celery Queue WITH the extra arguments
-            process_bill_image.delay(bill.id, whatsapp_id, media_id, mime_type)
+            # Dispatch to FastAPI BackgroundTasks
+            background_tasks.add_task(process_bill_image_async, bill.id, whatsapp_id, media_id, mime_type)
             return {"status": "success - media queued"}
             
         elif msg_type == "text":
@@ -91,6 +100,7 @@ async def handle_whatsapp_webhook(
 @router.post("/evolution", dependencies=[Depends(verify_evolution_signature)])
 async def handle_evolution_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db_session)
 ):
     payload = await request.json()
@@ -114,7 +124,9 @@ async def handle_evolution_webhook(
         if not message_id:
             return {"status": "ignored - no message id"}
 
-        if not await check_and_lock_message(message_id):
+        # 1. DB IDEMPOTENCY
+        existing_bill = await db.execute(select(Bill).where(Bill.whatsapp_message_id == message_id))
+        if existing_bill.scalar_one_or_none():
             logger.info("Skipping duplicate message", message_id=message_id)
             return {"status": "already processed"}
 
@@ -125,15 +137,19 @@ async def handle_evolution_webhook(
         if msg_type in ["imageMessage", "documentMessage"]:
             logger.info("Received evolution media", msg_type=msg_type, name=name, message_id=message_id)
             
-            bill = await bill_repo.create_bill(
-                merchant_id=merchant.id,
-                message_id=message_id,
-                public_id=f"pending_evo_{message_id}", 
-                file_url="pending"
-            )
+            try:
+                bill = await bill_repo.create_bill(
+                    merchant_id=merchant.id,
+                    message_id=message_id,
+                    public_id=f"pending_evo_{message_id}", 
+                    file_url="pending"
+                )
+            except IntegrityError:
+                await db.rollback()
+                logger.info("Skipping duplicate message during race condition", message_id=message_id)
+                return {"status": "already processed"}
             
-            # Using data object directly as the message struct needed to get base64
-            process_bill_image_evolution.delay(bill.id, whatsapp_id, data, "image/jpeg")
+            background_tasks.add_task(process_bill_image_evolution_async, bill.id, whatsapp_id, data, "image/jpeg")
             return {"status": "success - media queued"}
             
         elif msg_type in ["conversation", "extendedTextMessage"]:

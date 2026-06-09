@@ -1,7 +1,6 @@
 # main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.celery_app import celery_app  # Initialize Celery app in the API process
 from app.api.v1 import webhooks, dashboard, privacy_policy
 
 app = FastAPI(

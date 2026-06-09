@@ -8,15 +8,5 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: vm-redis
-          property: connectionString
       - key: HF_TOKEN
         sync: false
-
-  - type: redis
-    name: vm-redis
-    region: oregon
-    plan: free
