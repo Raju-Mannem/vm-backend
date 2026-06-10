@@ -4,6 +4,7 @@ import json
 from tenacity import retry, stop_after_attempt, wait_fixed
 from beanie.odm.fields import PydanticObjectId
 from app.models.bill import Bill, BillStatus
+from app.models.chat import ChatMessage
 from app.services.whatsapp import send_whatsapp_text
 from app.services.evolution import send_evolution_text, download_evolution_media
 from app.services.huggingface import structure_ocr_text
@@ -14,7 +15,7 @@ import structlog
 logger = structlog.get_logger()
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(60), reraise=True)
-async def _process_bill_image_core(bill_id: str, media_id: str, mime_type: str):
+async def _process_bill_image_core(bill_id: str, phone_number: str, media_id: str, mime_type: str):
     logger.info("Background task starting process", bill_id=bill_id)
     bill = await Bill.get(PydanticObjectId(bill_id))
     if not bill:
@@ -75,11 +76,26 @@ async def _process_bill_image_core(bill_id: str, media_id: str, mime_type: str):
     bill.status = BillStatus.REVIEW_PENDING
     await bill.save()
     
-    logger.info("SUCCESS! Bill is pending review in dashboard", bill_id=bill_id)
+    # 6. SEND APPROVAL PROMPT VIA WHATSAPP
+    prompt_text = (
+        "I have extracted the following details from your uploaded bill:\n"
+        f"- Supplier: {structured_json.get('supplier', 'Unknown')}\n"
+        f"- Date: {structured_json.get('date', 'Unknown')}\n"
+        f"- Total: {structured_json.get('total', 'Unknown')}\n"
+        f"- Tax: {structured_json.get('tax', 'Unknown')}\n\n"
+        "Does this look correct? Please reply with 'Yes' to approve, or tell me what to correct."
+    )
+    await send_whatsapp_text(phone_number, prompt_text)
+    
+    # Save the prompt to Chat History
+    ai_msg = ChatMessage(merchant_id=bill.merchant_id, role="assistant", content=prompt_text)
+    await ai_msg.insert()
+    
+    logger.info("SUCCESS! Bill is pending review via WhatsApp", bill_id=bill_id)
 
 async def process_bill_image_async(bill_id: str, phone_number: str, media_id: str, mime_type: str):
     try:
-        await _process_bill_image_core(bill_id, media_id, mime_type)
+        await _process_bill_image_core(bill_id, phone_number, media_id, mime_type)
     except Exception as e:
         logger.error("Max retries exceeded or fatal error", error=str(e), exc_info=True)
         failed_bill = await Bill.get(PydanticObjectId(bill_id))
@@ -90,7 +106,7 @@ async def process_bill_image_async(bill_id: str, phone_number: str, media_id: st
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(60), reraise=True)
-async def _process_bill_image_evolution_core(bill_id: str, message_dict: dict, mime_type: str):
+async def _process_bill_image_evolution_core(bill_id: str, phone_number: str, message_dict: dict, mime_type: str):
     logger.info("Background task starting process (Evolution)", bill_id=bill_id)
     bill = await Bill.get(PydanticObjectId(bill_id))
     if not bill:
@@ -135,11 +151,26 @@ async def _process_bill_image_evolution_core(bill_id: str, message_dict: dict, m
     bill.status = BillStatus.REVIEW_PENDING
     await bill.save()
     
-    logger.info("SUCCESS! Bill is pending review in dashboard", bill_id=bill_id)
+    # 6. SEND APPROVAL PROMPT VIA EVOLUTION
+    prompt_text = (
+        "I have extracted the following details from your uploaded bill:\n"
+        f"- Supplier: {structured_json.get('supplier', 'Unknown')}\n"
+        f"- Date: {structured_json.get('date', 'Unknown')}\n"
+        f"- Total: {structured_json.get('total', 'Unknown')}\n"
+        f"- Tax: {structured_json.get('tax', 'Unknown')}\n\n"
+        "Does this look correct? Please reply with 'Yes' to approve, or tell me what to correct."
+    )
+    await send_evolution_text(phone_number, prompt_text)
+    
+    # Save the prompt to Chat History
+    ai_msg = ChatMessage(merchant_id=bill.merchant_id, role="assistant", content=prompt_text)
+    await ai_msg.insert()
+    
+    logger.info("SUCCESS! Bill is pending review via WhatsApp", bill_id=bill_id)
 
 async def process_bill_image_evolution_async(bill_id: str, phone_number: str, message_dict: dict, mime_type: str):
     try:
-        await _process_bill_image_evolution_core(bill_id, message_dict, mime_type)
+        await _process_bill_image_evolution_core(bill_id, phone_number, message_dict, mime_type)
     except Exception as e:
         logger.error("Max retries exceeded or fatal error (Evolution)", error=str(e), exc_info=True)
         failed_bill = await Bill.get(PydanticObjectId(bill_id))

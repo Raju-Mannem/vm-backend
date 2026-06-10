@@ -5,6 +5,7 @@ from huggingface_hub import InferenceClient
 from app.core.config import settings
 from app.models.chat import ChatMessage
 from app.models.bill import Bill
+from app.models.enums import BillStatus
 from app.models.merchant import Merchant
 from app.services.whatsapp import send_whatsapp_text
 from app.services.evolution import send_evolution_text
@@ -42,6 +43,35 @@ TOOLS = [
                     "limit": {"type": "integer", "description": "Number of bills to fetch (max 10)"}
                 },
                 "required": ["limit"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_pending_bill",
+            "description": "Update the fields of the user's most recent pending bill with their corrections.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "corrections": {
+                        "type": "object",
+                        "description": "A dictionary of fields to update. Valid keys are: supplier, total, date, tax. Provide only the fields that need updating."
+                    }
+                },
+                "required": ["corrections"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "approve_pending_bill",
+            "description": "Approve the user's most recent pending bill so it can be officially saved in the system.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
             }
         }
     }
@@ -100,6 +130,42 @@ async def execute_tool(tool_call, merchant_id: PydanticObjectId) -> str:
                     })
             return json.dumps({"recent_bills": res})
             
+        elif name == "update_pending_bill":
+            corrections = args.get("corrections", {})
+            bill = await Bill.find(
+                Bill.merchant_id == merchant_id,
+                Bill.status == BillStatus.REVIEW_PENDING
+            ).sort("-created_at").first_or_none()
+            
+            if not bill:
+                return json.dumps({"error": "No pending bill found to update."})
+                
+            if bill.corrected_data is None:
+                bill.corrected_data = {}
+                
+            for k, v in corrections.items():
+                bill.corrected_data[k] = v
+                
+            await bill.save()
+            return json.dumps({
+                "status": "success", 
+                "message": "Bill updated successfully.", 
+                "updated_data": bill.corrected_data
+            })
+            
+        elif name == "approve_pending_bill":
+            bill = await Bill.find(
+                Bill.merchant_id == merchant_id,
+                Bill.status == BillStatus.REVIEW_PENDING
+            ).sort("-created_at").first_or_none()
+            
+            if not bill:
+                return json.dumps({"error": "No pending bill found to approve."})
+                
+            bill.status = BillStatus.APPROVED
+            await bill.save()
+            return json.dumps({"status": "success", "message": "Bill approved successfully."})
+            
     except Exception as e:
         logger.error("Tool execution failed", error=str(e))
         return json.dumps({"error": str(e)})
@@ -110,6 +176,8 @@ SYSTEM_PROMPT = """You are a helpful, human-like customer service representative
 Your job is to assist the merchant with their queries about their uploaded bills, expenses, and reports.
 Always be polite, professional, and clear.
 If a user asks for a monthly report or recent bills, USE the available tools to fetch their actual data from the database before answering.
+If the user provides corrections for a recently uploaded bill, USE the `update_pending_bill` tool.
+If the user confirms or says 'Yes' to approve a recently uploaded bill, USE the `approve_pending_bill` tool.
 Once you receive the tool data, summarize it clearly for the user in a natural conversational tone."""
 
 async def respond_to_user_async(merchant_id: str, platform: str, phone_number: str, text_body: str):
@@ -135,6 +203,8 @@ async def respond_to_user_async(merchant_id: str, platform: str, phone_number: s
         Tools available:
         - get_spending_summary: for monthly spending reports
         - get_recent_bills: for recent bill details
+        - update_pending_bill: for updating an uploaded bill with user corrections
+        - approve_pending_bill: for approving an uploaded bill
         
         Respond with JSON: {{"need_tool": true/false, "tool_name": "tool_name" or null, "args": {{...}}}}"""
         
