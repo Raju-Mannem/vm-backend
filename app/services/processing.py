@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import json
 from tenacity import retry, stop_after_attempt, wait_fixed
 from beanie.odm.fields import PydanticObjectId
 from app.models.bill import Bill, BillStatus
@@ -60,7 +61,13 @@ async def _process_bill_image_core(bill_id: str, media_id: str, mime_type: str):
     
     # 4. LLM STRUCTURING
     logger.info("Running HuggingFace LLM Structure")
-    structured_json = structure_ocr_text(raw_text)
+    structured_json_str = structure_ocr_text(raw_text)
+    
+    try:
+        structured_json = json.loads(structured_json_str) if isinstance(structured_json_str, str) else structured_json_str
+    except Exception as e:
+        logger.error("Failed to parse JSON from LLM", error=str(e))
+        structured_json = {}
 
     # 5. SAVE FINAL STATE
     bill.raw_ocr_text = raw_text
@@ -114,7 +121,13 @@ async def _process_bill_image_evolution_core(bill_id: str, message_dict: dict, m
     
     # 4. LLM STRUCTURING
     logger.info("Running HuggingFace LLM Structure")
-    structured_json = structure_ocr_text(raw_text)
+    structured_json_str = structure_ocr_text(raw_text)
+    
+    try:
+        structured_json = json.loads(structured_json_str) if isinstance(structured_json_str, str) else structured_json_str
+    except Exception as e:
+        logger.error("Failed to parse JSON from LLM", error=str(e))
+        structured_json = {}
 
     # 5. SAVE FINAL STATE
     bill.raw_ocr_text = raw_text
