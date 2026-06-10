@@ -136,7 +136,7 @@ async def respond_to_user_async(merchant_id: str, platform: str, phone_number: s
         - get_spending_summary: for monthly spending reports
         - get_recent_bills: for recent bill details
         
-        Respond with JSON: {"need_tool": true/false, "tool_name": "tool_name" or null, "args": {...}}"""
+        Respond with JSON: {{"need_tool": true/false, "tool_name": "tool_name" or null, "args": {{...}}}}"""
         
         detection_response = client.chat.completions.create(
             model="meta-llama/Llama-3.1-8B-Instruct",
