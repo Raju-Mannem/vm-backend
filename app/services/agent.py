@@ -128,11 +128,25 @@ async def respond_to_user_async(merchant_id: str, platform: str, phone_number: s
         messages.append({"role": msg.role, "content": msg.content})
         
     try:
-        logger.info("Sending prompt to LLM", merchant_id=merchant_id)
+        # FIRST: Check if user wants to use a tool (simple prompt-based detection)
+        tool_detection_prompt = f"""Check if this query needs database tools:
+        Query: {text_body}
+        
+        Tools available:
+        - get_spending_summary: for monthly spending reports
+        - get_recent_bills: for recent bill details
+        
+        Respond with JSON: {"need_tool": true/false, "tool_name": "tool_name" or null, "args": {...}}"""
+        
+        detection_response = client.chat.completions.create(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            messages=[{"role": "user", "content": tool_detection_prompt}],
+            max_tokens=100,
+            temperature=0.1
+        )
         response = client.chat.completions.create(
             model="meta-llama/Llama-3.1-8B-Instruct",
             messages=messages,
-            tools=TOOLS,
             max_tokens=300
         )
         

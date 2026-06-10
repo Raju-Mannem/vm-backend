@@ -32,6 +32,10 @@ app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"]
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 app.include_router(privacy_policy.router, prefix="/api/v1/privacy", tags=["Privacy"])
 
+@app.get("/")
+async def root():
+    return {"message": "Vyaparamitra API is running"}
+
 @app.get("/health", tags=["System"])
 async def health_check():
     return {"status": "healthy", "version": "1.0.0"}
