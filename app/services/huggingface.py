@@ -1,3 +1,4 @@
+import re
 from huggingface_hub import InferenceClient
 from app.core.config import settings
 import structlog
@@ -28,14 +29,16 @@ def structure_ocr_text(raw_text: str) -> str:
         response = client.chat.completions.create(
             model="Qwen/Qwen2.5-7B-Instruct", 
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
+            max_tokens=1000,
             temperature=0.1
         )
         
         content = response.choices[0].message.content
         
-        if content.startswith("```json"):
-            content = content.replace("```json", "").replace("```", "").strip()
+        # Robust JSON extraction to handle markdown or extra text
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            content = match.group(0)
             
         return content
         
