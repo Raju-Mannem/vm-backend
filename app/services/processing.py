@@ -77,12 +77,9 @@ async def _process_bill_image_core(bill_id: str, phone_number: str, media_id: st
     await bill.save()
     
     # 6. SEND APPROVAL PROMPT VIA WHATSAPP
+    fields_list = "\n".join([f"- {k}: {v}" for k, v in structured_json.items()])
     prompt_text = (
-        "మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n"
-        f"- షాపు పేరు (Supplier): {structured_json.get('supplier', 'Unknown')}\n"
-        f"- తేదీ (Date): {structured_json.get('date', 'Unknown')}\n"
-        f"- మొత్తం (Total): {structured_json.get('total', 'Unknown')}\n"
-        f"- పన్ను (Tax): {structured_json.get('tax', 'Unknown')}\n\n"
+        f"మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n{fields_list}\n\n"
         "ఇది కొనుగోలు (Purchase) బిల్లా లేక అమ్మకం (Sales) బిల్లా దయచేసి తెలపండి. ఈ వివరాలు కరెక్ట్ గానే ఉన్నాయా? అంతా ఓకే అయితే 'అవును' (Yes) అని కేటగిరీతో పాటు చెప్పండి. తప్పులు ఉంటే చెప్పండి, నేను మారుస్తాను."
     )
     await send_whatsapp_text(phone_number, prompt_text)
@@ -152,12 +149,9 @@ async def _process_bill_image_evolution_core(bill_id: str, phone_number: str, me
     await bill.save()
     
     # 6. SEND APPROVAL PROMPT VIA EVOLUTION
+    fields_list = "\n".join([f"- {k}: {v}" for k, v in structured_json.items()])
     prompt_text = (
-        "మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n"
-        f"- షాపు పేరు (Supplier): {structured_json.get('supplier', 'Unknown')}\n"
-        f"- తేదీ (Date): {structured_json.get('date', 'Unknown')}\n"
-        f"- మొత్తం (Total): {structured_json.get('total', 'Unknown')}\n"
-        f"- పన్ను (Tax): {structured_json.get('tax', 'Unknown')}\n\n"
+        f"మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n{fields_list}\n\n"
         "ఇది కొనుగోలు (Purchase) బిల్లా లేక అమ్మకం (Sales) బిల్లా దయచేసి తెలపండి. ఈ వివరాలు కరెక్ట్ గానే ఉన్నాయా? అంతా ఓకే అయితే 'అవును' (Yes) అని కేటగిరీతో పాటు చెప్పండి. తప్పులు ఉంటే చెప్పండి, నేను మారుస్తాను."
     )
     await send_evolution_text(phone_number, prompt_text)

@@ -56,7 +56,7 @@ TOOLS = [
                 "properties": {
                     "corrections": {
                         "type": "object",
-                        "description": "A dictionary of fields to update. Valid keys are: supplier, total, date, tax. Provide only the fields that need updating."
+                        "description": "A dictionary of fields to update. Can contain any dynamic key-value pairs (e.g. shipping, discount, supplier). Provide only the fields that need updating."
                     },
                     "category": {
                         "type": "string",

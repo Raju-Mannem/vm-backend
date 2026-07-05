@@ -16,6 +16,7 @@ def structure_ocr_text(raw_text: str) -> str:
 
     prompt = f"""
     You are an expert data extractor. Form a valid json from this OCR text:
+    Extract all relevant key-value pairs dynamically. However, you MUST ALWAYS include a key named exactly "total" representing the final total amount.
     Return only a valid JSON object with keys value pairs.
     If a value is missing, use null. Do not include markdown formatting.
     
