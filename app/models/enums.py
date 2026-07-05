@@ -7,3 +7,8 @@ class BillStatus(str, enum.Enum):
     REVIEW_PENDING = "REVIEW_PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+
+class BillCategory(str, enum.Enum):
+    PURCHASE = "PURCHASE"
+    SALES = "SALES"
+    UNKNOWN = "UNKNOWN"

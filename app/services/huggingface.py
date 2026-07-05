@@ -15,9 +15,8 @@ def structure_ocr_text(raw_text: str) -> str:
         return "{}"
 
     prompt = f"""
-    You are an expert data extractor. Extract the following details from this OCR text:
-    Supplier Name, Total Amount, Date, and Tax Amount.
-    Return ONLY a valid JSON object with keys: "supplier", "total", "date", "tax". 
+    You are an expert data extractor. Form a valid json from this OCR text:
+    Return only a valid JSON object with keys value pairs.
     If a value is missing, use null. Do not include markdown formatting.
     
     OCR TEXT:
@@ -26,7 +25,7 @@ def structure_ocr_text(raw_text: str) -> str:
 
     try:
         response = client.chat.completions.create(
-            model="meta-llama/Llama-3.1-8B-Instruct", 
+            model="Qwen/Qwen2.5-7B-Instruct", 
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150,
             temperature=0.1

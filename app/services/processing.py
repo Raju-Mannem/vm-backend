@@ -78,12 +78,12 @@ async def _process_bill_image_core(bill_id: str, phone_number: str, media_id: st
     
     # 6. SEND APPROVAL PROMPT VIA WHATSAPP
     prompt_text = (
-        "I have extracted the following details from your uploaded bill:\n"
-        f"- Supplier: {structured_json.get('supplier', 'Unknown')}\n"
-        f"- Date: {structured_json.get('date', 'Unknown')}\n"
-        f"- Total: {structured_json.get('total', 'Unknown')}\n"
-        f"- Tax: {structured_json.get('tax', 'Unknown')}\n\n"
-        "Does this look correct? Please reply with 'Yes' to approve, or tell me what to correct."
+        "మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n"
+        f"- షాపు పేరు (Supplier): {structured_json.get('supplier', 'Unknown')}\n"
+        f"- తేదీ (Date): {structured_json.get('date', 'Unknown')}\n"
+        f"- మొత్తం (Total): {structured_json.get('total', 'Unknown')}\n"
+        f"- పన్ను (Tax): {structured_json.get('tax', 'Unknown')}\n\n"
+        "ఇది కొనుగోలు (Purchase) బిల్లా లేక అమ్మకం (Sales) బిల్లా దయచేసి తెలపండి. ఈ వివరాలు కరెక్ట్ గానే ఉన్నాయా? అంతా ఓకే అయితే 'అవును' (Yes) అని కేటగిరీతో పాటు చెప్పండి. తప్పులు ఉంటే చెప్పండి, నేను మారుస్తాను."
     )
     await send_whatsapp_text(phone_number, prompt_text)
     
@@ -153,12 +153,12 @@ async def _process_bill_image_evolution_core(bill_id: str, phone_number: str, me
     
     # 6. SEND APPROVAL PROMPT VIA EVOLUTION
     prompt_text = (
-        "I have extracted the following details from your uploaded bill:\n"
-        f"- Supplier: {structured_json.get('supplier', 'Unknown')}\n"
-        f"- Date: {structured_json.get('date', 'Unknown')}\n"
-        f"- Total: {structured_json.get('total', 'Unknown')}\n"
-        f"- Tax: {structured_json.get('tax', 'Unknown')}\n\n"
-        "Does this look correct? Please reply with 'Yes' to approve, or tell me what to correct."
+        "మీరు పంపిన బిల్లు నుండి నేను ఈ వివరాలు సేకరించాను:\n"
+        f"- షాపు పేరు (Supplier): {structured_json.get('supplier', 'Unknown')}\n"
+        f"- తేదీ (Date): {structured_json.get('date', 'Unknown')}\n"
+        f"- మొత్తం (Total): {structured_json.get('total', 'Unknown')}\n"
+        f"- పన్ను (Tax): {structured_json.get('tax', 'Unknown')}\n\n"
+        "ఇది కొనుగోలు (Purchase) బిల్లా లేక అమ్మకం (Sales) బిల్లా దయచేసి తెలపండి. ఈ వివరాలు కరెక్ట్ గానే ఉన్నాయా? అంతా ఓకే అయితే 'అవును' (Yes) అని కేటగిరీతో పాటు చెప్పండి. తప్పులు ఉంటే చెప్పండి, నేను మారుస్తాను."
     )
     await send_evolution_text(phone_number, prompt_text)
     

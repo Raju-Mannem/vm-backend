@@ -5,7 +5,7 @@ from pydantic import Field
 from beanie import Document, Indexed
 from beanie.odm.fields import PydanticObjectId
 
-from .enums import BillStatus
+from .enums import BillStatus, BillCategory
 
 
 class Bill(Document):
@@ -16,6 +16,7 @@ class Bill(Document):
     file_url: str
 
     status: BillStatus = BillStatus.UPLOADED
+    category: BillCategory = BillCategory.UNKNOWN
 
     raw_ocr_text: Optional[str] = None
     corrected_data: Optional[Dict[str, Any]] = None
